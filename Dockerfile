@@ -2,7 +2,7 @@ FROM python:3.13-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
 COPY requirements.txt .
 
