@@ -129,7 +129,7 @@ async def on_message(new_msg):
 
                 curr_node.text = "\n".join(
                     ([cleaned_content] if cleaned_content else [])
-                    + [embed.description for embed in curr_msg.embeds if embed.description]
+                    + ["\n".join(filter(None, (embed.title, embed.description, embed.footer.text))) for embed in curr_msg.embeds]
                     + [(await httpx_client.get(att.url)).text for att in good_attachments["text"]]
                 )
 
