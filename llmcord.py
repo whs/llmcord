@@ -76,7 +76,7 @@ async def on_message(new_msg):
         return
 
     role_ids = set(role.id for role in getattr(new_msg.author, "roles", ()))
-    channel_ids = set(id for id in (new_msg.channel.id, getattr(new_msg.channel, "parent_id", None), getattr(new_msg.channel, "category_id", None)) if id)
+    channel_ids = set(filter(None, (new_msg.channel.id, getattr(new_msg.channel, "parent_id", None), getattr(new_msg.channel, "category_id", None))))
 
     cfg = get_config()
 
