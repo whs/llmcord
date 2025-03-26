@@ -18,8 +18,6 @@ logging.basicConfig(
 VISION_MODEL_TAGS = ("gpt-4", "claude-3", "gemini", "gemma", "pixtral", "mistral-small", "llava", "vision", "vl")
 PROVIDERS_SUPPORTING_USERNAMES = ("openai", "x-ai")
 
-ALLOWED_FILE_TYPES = ("image", "text")
-
 EMBED_COLOR_COMPLETE = discord.Color.dark_green()
 EMBED_COLOR_INCOMPLETE = discord.Color.orange()
 
@@ -125,24 +123,27 @@ async def on_message(new_msg):
             if curr_node.text == None:
                 cleaned_content = curr_msg.content.removeprefix(discord_client.user.mention).lstrip()
 
-                good_attachments = {type: [att for att in curr_msg.attachments if att.content_type and type in att.content_type] for type in ALLOWED_FILE_TYPES}
+                good_attachments = [att for att in curr_msg.attachments if att.content_type and any(att.content_type.startswith(type) for type in ("text", "image"))]
+
+                attachment_responses = await asyncio.gather(*[httpx_client.get(att.url) for att in good_attachments]) if good_attachments else []
 
                 curr_node.text = "\n".join(
                     ([cleaned_content] if cleaned_content else [])
                     + ["\n".join(filter(None, (embed.title, embed.description, embed.footer.text))) for embed in curr_msg.embeds]
-                    + [(await httpx_client.get(att.url)).text for att in good_attachments["text"]]
+                    + [resp.text for att, resp in zip(good_attachments, attachment_responses) if att.content_type.startswith("text")]
                 )
 
                 curr_node.images = [
-                    dict(type="image_url", image_url=dict(url=f"data:{att.content_type};base64,{b64encode((await httpx_client.get(att.url)).content).decode('utf-8')}"))
-                    for att in good_attachments["image"]
+                    dict(type="image_url", image_url=dict(url=f"data:{att.content_type};base64,{b64encode(resp.content).decode('utf-8')}"))
+                    for att, resp in zip(good_attachments, attachment_responses)
+                    if att.content_type.startswith("image")
                 ]
 
                 curr_node.role = "assistant" if curr_msg.author == discord_client.user else "user"
 
                 curr_node.user_id = curr_msg.author.id if curr_node.role == "user" else None
 
-                curr_node.has_bad_attachments = len(curr_msg.attachments) > sum(len(att_list) for att_list in good_attachments.values())
+                curr_node.has_bad_attachments = len(curr_msg.attachments) > len(good_attachments)
 
                 try:
                     if (
