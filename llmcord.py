@@ -125,7 +125,7 @@ async def on_message(new_msg):
 
                 good_attachments = [att for att in curr_msg.attachments if att.content_type and any(att.content_type.startswith(type) for type in ("text", "image"))]
 
-                attachment_responses = await asyncio.gather(*[httpx_client.get(att.url) for att in good_attachments]) if good_attachments else []
+                attachment_responses = await asyncio.gather(*[httpx_client.get(att.url) for att in good_attachments])
 
                 curr_node.text = "\n".join(
                     ([cleaned_content] if cleaned_content else [])
