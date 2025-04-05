@@ -43,7 +43,7 @@ Or run a local model with:
 ...Or use any other OpenAI compatible API server.
 
 ### And more:
-- Supports image attachments when using a vision model (like gpt-4o, claude-3, etc.)
+- Supports image attachments when using a vision model (like gpt-4o, claude-3, llama-4, etc.)
 - Supports text file attachments (.txt, .py, .c, etc.)
 - Customizable personality (aka system prompt)
 - User identity aware (OpenAI API and xAI API only)
