@@ -52,7 +52,7 @@ providers:
   jan:
     base_url: http://localhost:1337/v1
 
-model: openai/gpt-4o
+model: openai/gpt-4.1
 
 extra_api_parameters:
   max_tokens: 4096
