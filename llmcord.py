@@ -96,13 +96,14 @@ async def on_message(new_msg):
     if is_bad_user or is_bad_channel:
         return
 
-    provider, model = cfg["model"].split("/", 1)
+    provider_slash_model = cfg["model"]
+    provider, model = provider_slash_model.split("/", 1)
     base_url = cfg["providers"][provider]["base_url"]
     api_key = cfg["providers"][provider].get("api_key", "sk-no-key-required")
     openai_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
     accept_images = any(x in model.lower() for x in VISION_MODEL_TAGS)
-    accept_usernames = any(x in provider.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
+    accept_usernames = any(x in provider_slash_model.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
 
     max_text = cfg["max_text"]
     max_images = cfg["max_images"] if accept_images else 0
