@@ -24,7 +24,7 @@ EMBED_COLOR_INCOMPLETE = discord.Color.orange()
 STREAMING_INDICATOR = " ⚪"
 EDIT_DELAY_SECONDS = 1
 
-MAX_MESSAGE_NODES = 100
+MAX_MESSAGE_NODES = 500
 
 
 def get_config(filename="config.yaml"):
