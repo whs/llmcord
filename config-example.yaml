@@ -55,7 +55,6 @@ providers:
 model: openai/gpt-4.1
 
 extra_api_parameters:
-  max_tokens: 4096
   temperature: 1.0
 
 system_prompt: |
