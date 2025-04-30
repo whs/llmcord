@@ -96,10 +96,12 @@ async def on_message(new_msg):
     if is_bad_user or is_bad_channel:
         return
 
+    providers = cfg["providers"]
     provider_slash_model = cfg["model"]
+
     provider, model = provider_slash_model.split("/", 1)
-    base_url = cfg["providers"][provider]["base_url"]
-    api_key = cfg["providers"][provider].get("api_key", "sk-no-key-required")
+    base_url = providers[provider]["base_url"]
+    api_key = providers[provider].get("api_key", "sk-no-key-required")
     openai_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
     accept_images = any(x in model.lower() for x in VISION_MODEL_TAGS)
