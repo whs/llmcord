@@ -32,14 +32,18 @@ def get_config(filename="config.yaml"):
         return yaml.safe_load(file)
 
 
-cfg = get_config()
+config = get_config()
 
-if client_id := cfg["client_id"]:
+bot_token = config["bot_token"]
+
+if client_id := config["client_id"]:
     logging.info(f"\n\nBOT INVITE URL:\nhttps://discord.com/api/oauth2/authorize?client_id={client_id}&permissions=412317273088&scope=bot\n")
+
+status_message = config["status_message"] or "github.com/jakobdylanc/llmcord"
 
 intents = discord.Intents.default()
 intents.message_content = True
-activity = discord.CustomActivity(name=(cfg["status_message"] or "github.com/jakobdylanc/llmcord")[:128])
+activity = discord.CustomActivity(name=status_message[:128])
 discord_client = discord.Client(intents=intents, activity=activity)
 
 httpx_client = httpx.AsyncClient()
@@ -76,10 +80,10 @@ async def on_message(new_msg):
     role_ids = set(role.id for role in getattr(new_msg.author, "roles", ()))
     channel_ids = set(filter(None, (new_msg.channel.id, getattr(new_msg.channel, "parent_id", None), getattr(new_msg.channel, "category_id", None))))
 
-    cfg = get_config()
+    config = get_config()
 
-    allow_dms = cfg["allow_dms"]
-    permissions = cfg["permissions"]
+    allow_dms = config["allow_dms"]
+    permissions = config["permissions"]
 
     (allowed_user_ids, blocked_user_ids), (allowed_role_ids, blocked_role_ids), (allowed_channel_ids, blocked_channel_ids) = (
         (perm["allowed_ids"], perm["blocked_ids"]) for perm in (permissions["users"], permissions["roles"], permissions["channels"])
@@ -96,8 +100,8 @@ async def on_message(new_msg):
     if is_bad_user or is_bad_channel:
         return
 
-    providers = cfg["providers"]
-    provider_slash_model = cfg["model"]
+    providers = config["providers"]
+    provider_slash_model = config["model"]
 
     provider, model = provider_slash_model.split("/", 1)
     base_url = providers[provider]["base_url"]
@@ -107,11 +111,11 @@ async def on_message(new_msg):
     accept_images = any(x in model.lower() for x in VISION_MODEL_TAGS)
     accept_usernames = any(x in provider_slash_model.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
 
-    max_text = cfg["max_text"]
-    max_images = cfg["max_images"] if accept_images else 0
-    max_messages = cfg["max_messages"]
+    max_text = config["max_text"]
+    max_images = config["max_images"] if accept_images else 0
+    max_messages = config["max_messages"]
 
-    use_plain_responses = cfg["use_plain_responses"]
+    use_plain_responses = config["use_plain_responses"]
     max_message_length = 2000 if use_plain_responses else (4096 - len(STREAMING_INDICATOR))
 
     # Build message chain and set user warnings
@@ -196,7 +200,7 @@ async def on_message(new_msg):
 
     logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}, conversation length: {len(messages)}):\n{new_msg.content}")
 
-    if system_prompt := cfg["system_prompt"]:
+    if system_prompt := config["system_prompt"]:
         system_prompt_extras = [f"Today's date: {dt.now().strftime('%B %d %Y')}."]
         if accept_usernames:
             system_prompt_extras.append("User's names are their Discord IDs and should be typed as '<@ID>'.")
@@ -213,10 +217,11 @@ async def on_message(new_msg):
     for warning in sorted(user_warnings):
         embed.add_field(name=warning, value="", inline=False)
 
-    kwargs = dict(model=model, messages=messages[::-1], stream=True, extra_body=cfg["extra_api_parameters"])
+    extra_api_parameters = config["extra_api_parameters"]
+
     try:
         async with new_msg.channel.typing():
-            async for curr_chunk in await openai_client.chat.completions.create(**kwargs):
+            async for curr_chunk in await openai_client.chat.completions.create(model=model, messages=messages[::-1], stream=True, extra_body=extra_api_parameters):
                 if finish_reason != None:
                     break
 
@@ -284,7 +289,7 @@ async def on_message(new_msg):
 
 
 async def main():
-    await discord_client.start(cfg["bot_token"])
+    await discord_client.start(bot_token)
 
 
 asyncio.run(main())
