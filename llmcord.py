@@ -80,7 +80,7 @@ async def on_message(new_msg):
     role_ids = set(role.id for role in getattr(new_msg.author, "roles", ()))
     channel_ids = set(filter(None, (new_msg.channel.id, getattr(new_msg.channel, "parent_id", None), getattr(new_msg.channel, "category_id", None))))
 
-    config = get_config()
+    config = await asyncio.to_thread(get_config)
 
     allow_dms = config["allow_dms"]
     permissions = config["permissions"]
