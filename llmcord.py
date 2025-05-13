@@ -115,9 +115,6 @@ async def on_message(new_msg):
     max_images = config["max_images"] if accept_images else 0
     max_messages = config["max_messages"]
 
-    use_plain_responses = config["use_plain_responses"]
-    max_message_length = 2000 if use_plain_responses else (4096 - len(STREAMING_INDICATOR))
-
     # Build message chain and set user warnings
     messages = []
     user_warnings = set()
@@ -217,7 +214,10 @@ async def on_message(new_msg):
     for warning in sorted(user_warnings):
         embed.add_field(name=warning, value="", inline=False)
 
+    use_plain_responses = config["use_plain_responses"]
     extra_api_parameters = config["extra_api_parameters"]
+
+    max_message_length = 2000 if use_plain_responses else (4096 - len(STREAMING_INDICATOR))
 
     try:
         async with new_msg.channel.typing():
