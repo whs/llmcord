@@ -3,7 +3,7 @@ from base64 import b64encode
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 import logging
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import discord
 import httpx
@@ -27,7 +27,7 @@ EDIT_DELAY_SECONDS = 1
 MAX_MESSAGE_NODES = 500
 
 
-def get_config(filename="config.yaml"):
+def get_config(filename: str = "config.yaml") -> dict[str, Any]:
     with open(filename, "r") as file:
         return yaml.safe_load(file)
 
@@ -55,7 +55,7 @@ last_task_time = 0
 @dataclass
 class MsgNode:
     text: Optional[str] = None
-    images: list = field(default_factory=list)
+    images: list[dict[str, Any]] = field(default_factory=list)
 
     role: Literal["user", "assistant"] = "assistant"
     user_id: Optional[int] = None
@@ -69,7 +69,7 @@ class MsgNode:
 
 
 @discord_client.event
-async def on_message(new_msg):
+async def on_message(new_msg: discord.Message) -> None:
     global msg_nodes, last_task_time
 
     is_dm = new_msg.channel.type == discord.ChannelType.private
@@ -288,7 +288,7 @@ async def on_message(new_msg):
                 msg_nodes.pop(msg_id, None)
 
 
-async def main():
+async def main() -> None:
     await discord_client.start(bot_token)
 
 
