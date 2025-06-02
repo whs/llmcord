@@ -13,6 +13,7 @@ allow_dms: true
 
 permissions:
   users:
+    admin_ids: []
     allowed_ids: []
     blocked_ids: []
   roles:
@@ -52,10 +53,20 @@ providers:
   jan:
     base_url: http://localhost:1337/v1
 
-model: openai/gpt-4.1
+models:
+  openai/gpt-4.1:
+    temperature: 1.0
 
-extra_api_parameters:
-  temperature: 1.0
+  openai/o3:
+    reasoning_effort: high
+
+  x-ai/grok-3-latest:
+    search_parameters:
+      mode: auto
+
+  openrouter/anthropic/claude-sonnet-4:
+
+  ollama/llama4:
 
 system_prompt: |
   You are a snarky Discord chatbot. Be informative but harsh.
