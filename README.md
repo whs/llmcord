@@ -27,7 +27,9 @@ Additionally:
 - You can branch conversations into [threads](https://support.discord.com/hc/en-us/articles/4403205878423-Threads-FAQ). Just create a thread from any message and @ the bot inside to continue.
 - Back-to-back messages from the same user are automatically chained together. Just reply to the latest one and the bot will see all of them.
 
-### /model command:
+---
+
+### Model switching with `/model`:
 ![image](https://github.com/user-attachments/assets/9fbb9f56-9004-4997-a864-5b2ec67bac8f)
 
 llmcord supports remote models from:
@@ -43,6 +45,8 @@ Or run a local model with:
 - [vLLM](https://github.com/vllm-project/vllm)
 
 ...Or use any other OpenAI compatible API server.
+
+---
 
 ### And more:
 - Supports image attachments when using a vision model (like gpt-4.1, claude-4, llama-4, etc.)
