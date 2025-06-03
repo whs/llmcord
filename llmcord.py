@@ -78,7 +78,7 @@ async def model_command(interaction: discord.Interaction, model: str) -> None:
         else:
             output = "You don't have permission to change the model."
 
-    await interaction.response.send_message(output)
+    await interaction.response.send_message(output, ephemeral=(interaction.channel.type == discord.ChannelType.private))
 
 
 @model_command.autocomplete("model")
