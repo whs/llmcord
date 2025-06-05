@@ -69,11 +69,11 @@ async def model_command(interaction: discord.Interaction, model: str) -> None:
     global curr_model
 
     if model == curr_model:
-        output = f"Current model: {curr_model}"
+        output = f"Current model: `{curr_model}`"
     else:
         if user_is_admin := interaction.user.id in config["permissions"]["users"]["admin_ids"]:
             curr_model = model
-            output = f"Model switched to: {model}"
+            output = f"Model switched to: `{model}`"
             logging.info(output)
         else:
             output = "You don't have permission to change the model."
