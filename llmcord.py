@@ -233,12 +233,13 @@ async def on_message(new_msg: discord.Message) -> None:
     logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}, conversation length: {len(messages)}):\n{new_msg.content}")
 
     if system_prompt := config["system_prompt"]:
-        system_prompt_extras = [f"Today's date: {datetime.now().strftime('%B %d %Y')}."]
-        if accept_usernames:
-            system_prompt_extras.append("User's names are their Discord IDs and should be typed as '<@ID>'.")
+        now = datetime.now().astimezone()
 
-        full_system_prompt = "\n".join([system_prompt.strip()] + system_prompt_extras)
-        messages.append(dict(role="system", content=full_system_prompt))
+        system_prompt = system_prompt.replace("{date}", now.strftime("%B %d %Y")).replace("{time}", now.strftime("%H:%M:%S %Z%z")).strip()
+        if accept_usernames:
+            system_prompt += "\nUser's names are their Discord IDs and should be typed as '<@ID>'."
+
+        messages.append(dict(role="system", content=system_prompt))
 
     # Generate and send response message(s) (can be multiple if response is long)
     curr_content = finish_reason = edit_task = None
