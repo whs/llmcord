@@ -259,6 +259,8 @@ async def on_message(new_msg: discord.Message) -> None:
                 if finish_reason != None:
                     break
 
+                if not curr_chunk.choices:
+                    continue
                 finish_reason = curr_chunk.choices[0].finish_reason
 
                 prev_content = curr_content or ""
