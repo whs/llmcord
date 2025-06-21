@@ -259,12 +259,13 @@ async def on_message(new_msg: discord.Message) -> None:
                 if finish_reason != None:
                     break
 
-                if not curr_chunk.choices:
+                if not (choice := curr_chunk.choices[0] if curr_chunk.choices else None):
                     continue
-                finish_reason = curr_chunk.choices[0].finish_reason
+
+                finish_reason = choice.finish_reason
 
                 prev_content = curr_content or ""
-                curr_content = curr_chunk.choices[0].delta.content or ""
+                curr_content = choice.delta.content or ""
 
                 new_content = prev_content if finish_reason == None else (prev_content + curr_content)
 
