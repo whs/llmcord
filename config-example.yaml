@@ -48,6 +48,9 @@ providers:
     base_url: http://localhost:1234/v1
   vllm:
     base_url: http://localhost:8000/v1
+  gemini:
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key:
 
 models:
   openai/gpt-4.1:
@@ -63,6 +66,9 @@ models:
   openrouter/anthropic/claude-sonnet-4:
 
   ollama/llama4:
+
+  gemini/gemini-2.5-flash:
+    temperature: 1.0
 
 system_prompt: |
   You are a snarky Discord chatbot. Be informative but harsh.
