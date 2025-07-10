@@ -138,14 +138,14 @@ async def on_message(new_msg: discord.Message) -> None:
         return
 
     provider_slash_model = curr_model
-    provider, model = provider_slash_model.split("/", 1)
+    provider, model = provider_slash_model.removesuffix(":vision").split("/", 1)
     model_parameters = config["models"].get(provider_slash_model, None)
 
     base_url = config["providers"][provider]["base_url"]
     api_key = config["providers"][provider].get("api_key", "sk-no-key-required")
     openai_client = AsyncOpenAI(base_url=base_url, api_key=api_key)
 
-    accept_images = any(x in model.lower() for x in VISION_MODEL_TAGS)
+    accept_images = any(x in provider_slash_model.lower() for x in VISION_MODEL_TAGS) or provider_slash_model.endswith(":vision")
     accept_usernames = any(x in provider_slash_model.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
 
     max_text = config.get("max_text", 100000)
