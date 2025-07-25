@@ -19,6 +19,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.mcp import MCPServerStdio, MCPServerStreamableHTTP
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,10 +56,17 @@ intents.message_content = True
 activity = discord.CustomActivity(name=(config["status_message"] or "github.com/jakobdylanc/llmcord")[:128])
 discord_bot = commands.Bot(intents=intents, activity=activity, command_prefix=None)
 
-toolsets: list[AbstractToolset] = []
+def parse_mcp_option(name: str, option: dict):
+    if "url" in option:
+        return MCPServerStreamableHTTP(option["url"], tool_prefix=name)
+    else:
+        option.setdefault("tool_prefix", name)
+        return MCPServerStdio(**option)
 
-for mcpServer in config.get("mcpServers", []):
-    pass
+toolsets: list[AbstractToolset] = [
+    parse_mcp_option(name, mcp)
+    for name, mcp in config.get("mcpServers", {}).items()
+]
 
 httpx_client = httpx.AsyncClient()
 
@@ -126,7 +134,6 @@ async def discord_msg_to_modelmessage(msg: discord.Message, max_images: int) -> 
 
     return out
 
-
 @discord_bot.tree.command(name="model", description="View or switch the current model")
 async def model_command(interaction: discord.Interaction, model: str) -> None:
     global curr_model
@@ -180,6 +187,8 @@ def get_agent(new_msg: discord.Message) -> Agent:
     model_parameters["extra_headers"] = extra_headers
     model_parameters["extra_body"] = extra_body
 
+    agent_kwargs = {}
+
     provider = OpenAIProvider(base_url=base_url, api_key=api_key, http_client=httpx_client)
     model = OpenAIModel(model_name=model, provider=provider, settings=ModelSettings(**model_parameters))
 
@@ -190,27 +199,29 @@ def get_agent(new_msg: discord.Message) -> Agent:
         accept_usernames = any(x in provider_slash_model.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
         system_prompt = [
             config["system_prompt"]
-                 .replace("{id}", discord_bot.user.mention)
-                 .replace("{date}", now.strftime("%B %d %Y"))
-                 .replace("{time}", now.strftime("%H:%M:%S %Z%z"))
-                 .strip()
+                .replace("{id}", discord_bot.user.mention)
+                .replace("{user_id}", new_msg.author.mention)
+                .replace("{date}", now.strftime("%B %d %Y"))
+                .replace("{time}", now.strftime("%H:%M:%S %Z%z"))
+                .strip()
          ]
         if accept_usernames:
             system_prompt.append("User's names are their Discord IDs and should be typed as '<@ID>'")
+
+    support_tool_use = model_parameters.get("tools", False)
+    if support_tool_use:
+        def get_user():
+            """Get the user information of the last message"""
+            return f"Last message's author name: {new_msg.author.name}\nWhen mentioning this user's full name, ALWAYS use the mention tag {new_msg.author.mention} (with <>) instead of their name\nSubsequent messages may have different names"
+        agent_kwargs['tools'] = [get_user]
+        agent_kwargs['toolsets'] = toolsets
 
     agent = Agent(
         model=model,
         instructions=system_prompt,
         output_type=str,
-        toolsets=toolsets,
+        **agent_kwargs,
     )
-
-    support_tool_use = model_parameters.get("tools", False)
-    if support_tool_use:
-        @agent.tool_plain
-        def get_user():
-            """Get the user information of the last message"""
-            return f"Last message's author name: {new_msg.author.name}\nWhen mentioning this user's full name, ALWAYS use the mention tag {new_msg.author.mention} (with <>) instead of their name\nSubsequent messages may have different names"
 
     return agent
 
