@@ -11,3 +11,6 @@
 !config-example.yaml
 !docker-compose.yaml
 !requirements.txt
+!pyproject.toml
+!uv.lock
+!.python-version
