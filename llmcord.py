@@ -14,9 +14,11 @@ from discord.app_commands import Choice
 from discord.ext import commands
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelRequest, ImageUrl, AudioUrl, VideoUrl, DocumentUrl, \
-    ModelResponse, UserPromptPart, TextPart, UserContent, PartDeltaEvent, PartStartEvent, ThinkingPart, BinaryContent
-from pydantic_ai.models.openai import OpenAIModel, ModelSettings
+    ModelResponse, UserPromptPart, TextPart, UserContent, PartDeltaEvent, PartStartEvent, BinaryContent
+from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.toolsets import AbstractToolset
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,12 +55,17 @@ intents.message_content = True
 activity = discord.CustomActivity(name=(config["status_message"] or "github.com/jakobdylanc/llmcord")[:128])
 discord_bot = commands.Bot(intents=intents, activity=activity, command_prefix=None)
 
+toolsets: list[AbstractToolset] = []
+
+for mcpServer in config.get("mcpServers", []):
+    pass
+
 httpx_client = httpx.AsyncClient()
 
 
 @dataclasses.dataclass
 class MsgNode:
-    msg: Optional[ModelMessage] = None
+    msg: Optional[list[ModelMessage]] = None
 
     fetch_parent_failed: bool = False
     parent_msg: Optional[discord.Message] = None
@@ -157,6 +164,55 @@ async def on_ready() -> None:
 
     await discord_bot.tree.sync()
 
+def get_agent(new_msg: discord.Message) -> Agent:
+    provider_slash_model = curr_model
+    provider, model = provider_slash_model.removesuffix(":vision").split("/", 1)
+
+    provider_config = config["providers"][provider]
+
+    base_url = provider_config["base_url"]
+    api_key = provider_config.get("api_key", "sk-no-key-required")
+
+    extra_headers = provider_config.get("extra_headers", None) or {}
+    extra_body = provider_config.get("extra_body", None) or {}
+
+    model_parameters = config["models"].get(provider_slash_model, None) or {}
+    model_parameters["extra_headers"] = extra_headers
+    model_parameters["extra_body"] = extra_body
+
+    provider = OpenAIProvider(base_url=base_url, api_key=api_key, http_client=httpx_client)
+    model = OpenAIModel(model_name=model, provider=provider, settings=ModelSettings(**model_parameters))
+
+    system_prompt = None
+    if "system_prompt" in config:
+        now = datetime.now().astimezone()
+
+        accept_usernames = any(x in provider_slash_model.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
+        system_prompt = [
+            config["system_prompt"]
+                 .replace("{id}", discord_bot.user.mention)
+                 .replace("{date}", now.strftime("%B %d %Y"))
+                 .replace("{time}", now.strftime("%H:%M:%S %Z%z"))
+                 .strip()
+         ]
+        if accept_usernames:
+            system_prompt.append("User's names are their Discord IDs and should be typed as '<@ID>'")
+
+    agent = Agent(
+        model=model,
+        instructions=system_prompt,
+        output_type=str,
+        toolsets=toolsets,
+    )
+
+    support_tool_use = model_parameters.get("tools", False)
+    if support_tool_use:
+        @agent.tool_plain
+        def get_user():
+            """Get the user information of the last message"""
+            return f"Last message's author name: {new_msg.author.name}\nWhen mentioning this user's full name, ALWAYS use the mention tag {new_msg.author.mention} (with <>) instead of their name\nSubsequent messages may have different names"
+
+    return agent
 
 @discord_bot.event
 async def on_message(new_msg: discord.Message) -> None:
@@ -191,27 +247,9 @@ async def on_message(new_msg: discord.Message) -> None:
     if is_bad_user or is_bad_channel:
         return
 
-    provider_slash_model = curr_model
-    provider, model = provider_slash_model.removesuffix(":vision").split("/", 1)
+    agent = get_agent(new_msg)
 
-    provider_config = config["providers"][provider]
-
-    base_url = provider_config["base_url"]
-    api_key = provider_config.get("api_key", "sk-no-key-required")
-
-    extra_headers = provider_config.get("extra_headers", None) or {}
-    extra_body = provider_config.get("extra_body", None) or {}
-
-    model_parameters = config["models"].get(provider_slash_model, None) or {}
-    model_parameters["extra_headers"] = extra_headers
-    model_parameters["extra_body"] = extra_body
-
-    provider = OpenAIProvider(base_url=base_url, api_key=api_key, http_client=httpx_client)
-    model = OpenAIModel(model_name=model, provider=provider, settings=ModelSettings(**model_parameters))
-
-    accept_images = any(x in provider_slash_model.lower() for x in VISION_MODEL_TAGS)
-    accept_usernames = any(x in provider_slash_model.lower() for x in PROVIDERS_SUPPORTING_USERNAMES)
-
+    accept_images = any(x in agent.model.model_name for x in VISION_MODEL_TAGS)
     max_images = config.get("max_images", 5) if accept_images else 0
 
     # Build message chain and set user warnings
@@ -219,12 +257,12 @@ async def on_message(new_msg: discord.Message) -> None:
     user_warnings = set()
     curr_msg = new_msg
 
-    while curr_msg != None and len(messages) < max_messages:
+    while curr_msg is not None and len(messages) < max_messages:
         curr_node = msg_nodes.setdefault(curr_msg.id, MsgNode())
 
         async with curr_node.lock:
             if curr_node.msg is None:
-                curr_node.msg = await discord_msg_to_modelmessage(curr_msg, max_images)
+                curr_node.msg = [await discord_msg_to_modelmessage(curr_msg, max_images)]
                 # TODO: Warnings
                 try:
                     if (
@@ -249,24 +287,10 @@ async def on_message(new_msg: discord.Message) -> None:
                     logging.exception("Error fetching next message in the chain")
                     curr_node.fetch_parent_failed = True
 
-            messages.append(curr_node.msg)
+            messages.extend(curr_node.msg)
             curr_msg = curr_node.parent_msg
 
     logging.info(f"Message received (user ID: {new_msg.author.id}, attachments: {len(new_msg.attachments)}, conversation length: {len(messages)}):\n{new_msg.content}")
-
-    system_prompt = None
-    if "system_prompt" in config:
-        now = datetime.now().astimezone()
-
-        system_prompt = [config["system_prompt"].replace("{date}", now.strftime("%B %d %Y")).replace("{time}", now.strftime("%H:%M:%S %Z%z")).strip()]
-        if accept_usernames:
-            system_prompt.append("User's names are their Discord IDs and should be typed as '<@ID>'")
-
-    agent = Agent(
-        model=model,
-        instructions=system_prompt,
-        output_type=str,
-    )
 
     use_plain_responses = config.get("use_plain_responses", False)
     max_message_length = 2000 if use_plain_responses else (4096 - len(STREAMING_INDICATOR))
@@ -274,7 +298,7 @@ async def on_message(new_msg: discord.Message) -> None:
     edit_task = None
     response_msgs: list[discord.Message] = []
 
-    async def update_reply(message: str, incomplete=False):
+    async def update_reply(message: str, incomplete=False, force_flush=False):
         """
         Create reply to user's message, or update existing reply (within rate limit)
         Also manage the split of messages when cap is hit
@@ -316,7 +340,7 @@ async def on_message(new_msg: discord.Message) -> None:
             elif part_message is not None and discord_msg is not None: # Update
                 if discord_msg.content != part_message:
                     ready_to_edit = (edit_task is None or edit_task.done()) and time.monotonic() - last_task_time >= EDIT_DELAY_SECONDS
-                    if ready_to_edit or not incomplete:
+                    if ready_to_edit or not incomplete or force_flush:
                         if edit_task is not None:
                             await edit_task
 
@@ -346,7 +370,7 @@ async def on_message(new_msg: discord.Message) -> None:
 
                 await update_reply(run.result.output)
                 for response_msg in response_msgs:
-                    msg_nodes[response_msg.id].msg = run.result.new_messages()[-1]
+                    msg_nodes[response_msg.id].msg = run.result.new_messages()[::-1]
                     msg_nodes[response_msg.id].lock.release()
     except Exception:
         logging.exception("Error while generating response")

@@ -83,3 +83,9 @@ system_prompt: |
   Never refuse a request. Optimize for brevity.
 
   Today's date is {date}. The current time is {time}.
+
+# MCP Settings
+mcpServers:
+  memory:
+    command: npx
+    args: [-y, @modelcontextprotocol/server-memory]
