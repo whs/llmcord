@@ -14,7 +14,8 @@ from discord.app_commands import Choice
 from discord.ext import commands
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelRequest, ImageUrl, AudioUrl, VideoUrl, DocumentUrl, \
-    ModelResponse, UserPromptPart, TextPart, UserContent, PartDeltaEvent, PartStartEvent, BinaryContent
+    ModelResponse, UserPromptPart, TextPart, UserContent, PartDeltaEvent, PartStartEvent, BinaryContent, \
+    ModelRequestPart, ModelResponsePart, ToolCallPart
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
@@ -365,24 +366,32 @@ async def on_message(new_msg: discord.Message) -> None:
     try:
         async with new_msg.channel.typing():
             async with agent.iter(messages[0].parts[0].content, message_history=messages[1:][::-1]) as run:
+                agent_messages = []
                 async for node in run:
                     if Agent.is_model_request_node(node):
                         current_part = None
                         async with node.stream(run.ctx) as request_stream:
                             async for event in request_stream:
                                 if isinstance(event, PartStartEvent):
+                                    if current_part is not None:
+                                        agent_messages.append([current_part])
+
                                     current_part = event.part
                                     # We don't commit now until the next
                                 elif isinstance(event, PartDeltaEvent):
                                     current_part = event.delta.apply(current_part)
 
-                                if isinstance(current_part, TextPart):
-                                    await update_reply(current_part.content, incomplete=True)
+                                await update_reply(format_message_history(agent_messages + [[current_part]]), incomplete=True)
 
-                await update_reply(run.result.output)
-                for response_msg in response_msgs:
-                    msg_nodes[response_msg.id].msg = run.result.new_messages()[::-1]
-                    msg_nodes[response_msg.id].lock.release()
+                        if current_part is not None:
+                            agent_messages.append([current_part])
+
+                await update_reply(format_message_history([v.parts for v in run.result.new_messages()]))
+                new_messages = run.result.new_messages()[::-1]
+
+        for response_msg in response_msgs:
+            msg_nodes[response_msg.id].msg = new_messages
+            msg_nodes[response_msg.id].lock.release()
     except Exception:
         logging.exception("Error while generating response")
 
@@ -392,6 +401,18 @@ async def on_message(new_msg: discord.Message) -> None:
             async with msg_nodes.setdefault(msg_id, MsgNode()).lock:
                 msg_nodes.pop(msg_id, None)
 
+def format_message_history(parts: list[list[ModelRequestPart | ModelResponsePart]]) -> str:
+    out = []
+
+    for part in parts:
+        for msg in part:
+            if isinstance(msg, TextPart):
+                out.append(msg.content)
+            elif isinstance(msg, ToolCallPart):
+                out.append(f"-# Using tool `{msg.tool_name}`")
+            # We don't show thinking...
+
+    return "\n\n".join(out)
 
 async def main() -> None:
     await discord_bot.start(config["bot_token"])
