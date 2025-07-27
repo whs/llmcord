@@ -406,7 +406,7 @@ def format_message_history(parts: list[list[ModelRequestPart | ModelResponsePart
 
     for part in parts:
         for msg in part:
-            if isinstance(msg, TextPart):
+            if isinstance(msg, TextPart) and len(msg.content) > 0:
                 out.append(msg.content)
             elif isinstance(msg, ToolCallPart):
                 out.append(f"-# Using tool `{msg.tool_name}`")
