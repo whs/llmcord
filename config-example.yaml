@@ -89,3 +89,11 @@ mcpServers:
   memory:
     command: npx
     args: [-y, "@modelcontextprotocol/server-memory"]
+
+# Gemini Live settings
+voice:
+  enabled: true
+  model: gemini-live-2.5-flash-preview-native-audio
+  voice: Zephyr
+  system_prompt: |
+    You're Mishy - a helpful, smart Discord bot. You can hear and speak. You are chatting with a group of users in a voice channel.

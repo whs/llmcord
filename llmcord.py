@@ -5,11 +5,10 @@ import time
 from dataclasses import field
 from datetime import datetime
 from itertools import zip_longest
-from typing import Any, Optional
+from typing import Optional
 
 import discord
 import httpx
-import yaml
 from discord.app_commands import Choice
 from discord.ext import commands
 from pydantic_ai import Agent
@@ -21,6 +20,10 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.mcp import MCPServerStdio, MCPServerStreamableHTTP
+
+import gemini_live
+from config import get_config, config
+from gemini_live import GeminiLiveConnection
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,13 +41,6 @@ EDIT_DELAY_SECONDS = 1
 
 MAX_MESSAGE_NODES = 500
 
-
-def get_config(filename: str = "config.yaml") -> dict[str, Any]:
-    with open(filename, encoding="utf-8") as file:
-        return yaml.safe_load(file)
-
-
-config = get_config()
 curr_model = next(iter(config["models"]))
 max_text = config.get("max_text", 100000)
 max_messages = config.get("max_messages", 25)
@@ -54,6 +50,7 @@ last_task_time = 0
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.voice_states = True
 activity = discord.CustomActivity(name=(config["status_message"] or "github.com/jakobdylanc/llmcord")[:128])
 discord_bot = commands.Bot(intents=intents, activity=activity, command_prefix=None)
 
@@ -154,11 +151,6 @@ async def model_command(interaction: discord.Interaction, model: str) -> None:
 
 @model_command.autocomplete("model")
 async def model_autocomplete(interaction: discord.Interaction, curr_str: str) -> list[Choice[str]]:
-    global config
-
-    if curr_str == "":
-        config = await asyncio.to_thread(get_config)
-
     choices = [Choice(name=f"○ {model}", value=model) for model in config["models"] if model != curr_model and curr_str.lower() in model.lower()][:24]
     choices += [Choice(name=f"◉ {curr_model} (current)", value=curr_model)] if curr_str.lower() in curr_model.lower() else []
 
@@ -221,6 +213,7 @@ def get_agent(new_msg: discord.Message) -> Agent:
         model=model,
         instructions=system_prompt,
         output_type=str,
+        retries=10,
         **agent_kwargs,
     )
 
@@ -415,6 +408,8 @@ def format_message_history(parts: list[list[ModelRequestPart | ModelResponsePart
     return "\n\n".join(out)
 
 async def main() -> None:
+    if "voice" in config and config["voice"]["enabled"]:
+        discord_bot.tree.add_command(gemini_live.live_command)
     await discord_bot.start(config["bot_token"])
 
 

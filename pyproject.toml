@@ -5,10 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "discord-py>=2.5.2",
+    "discord-ext-voice-recv @ git+https://github.com/imayhaveborkedit/discord-ext-voice-recv.git@ac04ea7b0941112e83767cf1c1469b408fa06748",
+    "discord-py[voice]>=2.5.2",
+    "google-genai>=1.28.0",
     "httpx>=0.28.1",
     "openai>=1.97.1",
     "pydantic>=2.11.7",
     "pydantic-ai-slim[openai,mcp]>=0.4.7",
     "pyyaml>=6.0.2",
+    "queuepipeio>=0.1.14",
 ]
