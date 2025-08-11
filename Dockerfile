@@ -1,8 +1,8 @@
-FROM debian:bookworm
+FROM debian:trixie
 COPY --from=ghcr.io/astral-sh/uv:0.7 /uv /uvx /usr/bin/
 RUN useradd -u 1000 -d /app app \
     && apt-get update \
-    && apt-get install -y ca-certificates \
+    && apt-get install -y ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
 
