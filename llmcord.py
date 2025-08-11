@@ -2,6 +2,7 @@ import asyncio
 import dataclasses
 import logging
 import time
+import typing
 from dataclasses import field
 from datetime import datetime
 from itertools import zip_longest
@@ -29,7 +30,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s: %(message)s",
 )
 
-VISION_MODEL_TAGS = ("claude", "gemini", "gemma", "gpt-4", "grok-4", "llama", "llava", "mistral", "o3", "o4", "vision", "vl")
+VISION_MODEL_TAGS = ("claude", "gemini", "gemma", "gpt-4", "gpt-5", "grok-4", "llama", "llava", "mistral", "o3", "o4", "vision", "vl")
 PROVIDERS_SUPPORTING_USERNAMES = ("openai", "x-ai")
 
 EMBED_COLOR_COMPLETE = discord.Color.dark_green()
@@ -212,9 +213,10 @@ def get_agent(new_msg: discord.Message) -> Agent:
         model=model,
         instructions=system_prompt,
         output_type=str,
-        retries=10,
+        retries=model_parameters.get("retries", 5),
         **agent_kwargs,
     )
+    agent.image_support = model_parameters.get("image", False) or any(x in agent.model.model_name for x in VISION_MODEL_TAGS)
 
     return agent
 
@@ -253,7 +255,7 @@ async def on_message(new_msg: discord.Message) -> None:
 
     agent = get_agent(new_msg)
 
-    accept_images = any(x in agent.model.model_name for x in VISION_MODEL_TAGS)
+    accept_images = typing.cast(typing.Any, agent).image_support
     max_images = config.get("max_images", 5) if accept_images else 0
 
     # Build message chain and set user warnings
