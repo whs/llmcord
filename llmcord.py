@@ -23,7 +23,6 @@ from pydantic_ai.mcp import MCPServerStdio, MCPServerStreamableHTTP
 
 import gemini_live
 from config import get_config, config
-from gemini_live import GeminiLiveConnection
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,7 +55,7 @@ discord_bot = commands.Bot(intents=intents, activity=activity, command_prefix=No
 
 def parse_mcp_option(name: str, option: dict):
     if "url" in option:
-        return MCPServerStreamableHTTP(option["url"], tool_prefix=name)
+        return MCPServerStreamableHTTP(option["url"], tool_prefix=name, max_retries=option.get("max_retries", 5))
     else:
         option.setdefault("tool_prefix", name)
         return MCPServerStdio(**option)
@@ -358,35 +357,37 @@ async def on_message(new_msg: discord.Message) -> None:
 
     try:
         async with new_msg.channel.typing():
-            async with agent.iter(messages[0].parts[0].content, message_history=messages[1:][::-1]) as run:
-                agent_messages = []
-                async for node in run:
-                    if Agent.is_model_request_node(node):
-                        current_part = None
-                        async with node.stream(run.ctx) as request_stream:
-                            async for event in request_stream:
-                                if isinstance(event, PartStartEvent):
-                                    if current_part is not None:
-                                        agent_messages.append([current_part])
+            async with agent:
+                async with agent.iter(messages[0].parts[0].content, message_history=messages[1:][::-1]) as run:
+                    agent_messages = []
+                    async for node in run:
+                        if Agent.is_model_request_node(node):
+                            current_part = None
+                            async with node.stream(run.ctx) as request_stream:
+                                async for event in request_stream:
+                                    if isinstance(event, PartStartEvent):
+                                        if current_part is not None:
+                                            agent_messages.append([current_part])
 
-                                    current_part = event.part
-                                    # We don't commit now until the next
-                                elif isinstance(event, PartDeltaEvent):
-                                    current_part = event.delta.apply(current_part)
+                                        current_part = event.part
+                                        # We don't commit now until the next
+                                    elif isinstance(event, PartDeltaEvent):
+                                        current_part = event.delta.apply(current_part)
 
-                                await update_reply(format_message_history(agent_messages + [[current_part]]), incomplete=True)
+                                    await update_reply(format_message_history(agent_messages + [[current_part]]), incomplete=True)
 
-                        if current_part is not None:
-                            agent_messages.append([current_part])
+                            if current_part is not None:
+                                agent_messages.append([current_part])
 
-                await update_reply(format_message_history([v.parts for v in run.result.new_messages()]))
-                new_messages = run.result.new_messages()[::-1]
+                    await update_reply(format_message_history([v.parts for v in run.result.new_messages()]))
+                    new_messages = run.result.new_messages()[::-1]
 
         for response_msg in response_msgs:
             msg_nodes[response_msg.id].msg = new_messages
             msg_nodes[response_msg.id].lock.release()
     except Exception:
         logging.exception("Error while generating response")
+        await update_reply("An error occurred while generating response")
 
     # Delete oldest MsgNodes (lowest message IDs) from the cache
     if (num_nodes := len(msg_nodes)) > MAX_MESSAGE_NODES:
