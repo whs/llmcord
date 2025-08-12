@@ -2,12 +2,14 @@
 
 bot_token: 
 client_id: 
-status_message: 
+status_message:
 
 max_text: 100000
 max_images: 5
 max_messages: 25
 
+# Enable Character Card support. Using character card ignores the system prompts. The character get access to the tools
+enable_character_card: false
 use_plain_responses: false
 allow_dms: true
 

@@ -75,6 +75,7 @@ class MsgNode:
 
     fetch_parent_failed: bool = False
     parent_msg: Optional[discord.Message] = None
+    override_system_prompt: bool = False
 
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -262,6 +263,7 @@ async def on_message(new_msg: discord.Message) -> None:
     messages: list[ModelMessage] = []
     user_warnings = set()
     curr_msg = new_msg
+    override_system_prompt = False
 
     while curr_msg is not None and len(messages) < max_messages:
         curr_node = msg_nodes.setdefault(curr_msg.id, MsgNode())
@@ -293,6 +295,7 @@ async def on_message(new_msg: discord.Message) -> None:
                     logging.exception("Error fetching next message in the chain")
                     curr_node.fetch_parent_failed = True
 
+            override_system_prompt = override_system_prompt or curr_node.override_system_prompt
             messages.extend(curr_node.msg)
             curr_msg = curr_node.parent_msg
 
@@ -303,6 +306,10 @@ async def on_message(new_msg: discord.Message) -> None:
 
     edit_task = None
     response_msgs: list[discord.Message] = []
+
+    if override_system_prompt:
+        # Hack
+        agent._instructions = None
 
     async def update_reply(message: str, incomplete=False, force_flush=False):
         """
@@ -413,10 +420,16 @@ def format_message_history(parts: list[list[ModelRequestPart | ModelResponsePart
 async def main() -> None:
     if "voice" in config and config["voice"]["enabled"]:
         discord_bot.tree.add_command(gemini_live.live_command)
+    if config.get("enable_character_card", False):
+        from character_card.cog import CharacterCardCog
+
+        await discord_bot.add_cog(CharacterCardCog(discord_bot, msg_nodes))
+
     await discord_bot.start(config["bot_token"])
 
 
-try:
-    asyncio.run(main())
-except KeyboardInterrupt:
-    pass
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

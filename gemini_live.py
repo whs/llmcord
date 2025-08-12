@@ -1,7 +1,6 @@
 import asyncio
 import io
 import logging
-from pickletools import read_uint1
 from typing import Optional
 
 import discord
